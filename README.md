@@ -1,156 +1,352 @@
-# Social Media Post Sharing Platform
-Backend Development (Node.js, Express.js, MongoDB) - Final Project
+<div align="center">
 
-Users can register, log in, create text posts, like/unlike posts and comment on them.
-A user can edit or delete **only their own** posts and comments. Everything is protected by JWT.
+# PostBoard: Social Media Post Sharing Platform
 
-## Folder structure
-```
-social-media-platform/
-├── backend/
-│   ├── server.js                 # entry point: middlewares, routes, error handler
-│   ├── config/db.js              # MongoDB Atlas connection
-│   ├── models/                   # Mongoose schemas
-│   │   ├── User.js
-│   │   ├── Post.js               # author (ref User), likes[] (refs User)
-│   │   └── Comment.js            # post (ref Post), author (ref User)
-│   ├── middleware/
-│   │   ├── auth.js               # JWT authentication
-│   │   ├── ownership.js          # ownership-based authorization
-│   │   └── validate.js           # input validation
-│   ├── controllers/              # business logic
-│   ├── routes/                   # URL -> middleware -> controller mapping
-│   ├── postman/                  # Postman / Thunder Client collection
-│   └── .env.example              # PORT, MONGO_URI, JWT_SECRET
-└── frontend/                     # React (Vite) basic UI
-    └── src/pages, components, api.js, AuthContext.jsx
-```
+A full-stack mini social network where authenticated users create posts, like them and comment on them.
+Built with **Node.js, Express.js, MongoDB (Mongoose) and React**, secured with **JWT authentication** and **ownership-based authorization**.
 
-## Run locally
+![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)
+![Express](https://img.shields.io/badge/Express-4.x-000000?logo=express&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![JWT](https://img.shields.io/badge/Auth-JWT-000000?logo=jsonwebtokens&logoColor=white)
 
-### 1. Backend
-```
-cd backend
-npm install
-```
-Open `.env` and set:
-- `MONGO_URI` = your MongoDB Atlas connection string (Atlas -> Connect -> Drivers)
-- `JWT_SECRET` = any long random text
-
-In Atlas also: Network Access -> allow your IP (or 0.0.0.0/0 for testing).
-```
-npm run dev        # http://localhost:5000
-```
-
-### 2. Frontend
-```
-cd frontend
-npm install
-npm run dev        # http://localhost:5173
-```
-
-### 3. Test the API
-Import `backend/postman/Social-Media-API.postman_collection.json` in Postman or Thunder Client.
-Run **Register** (token is saved automatically), then the other requests in order.
-The folder "Negative tests" shows 401 / 400 / 403 cases - good to demo in viva.
-
-## API endpoints
-| Method | URL | Auth | Who can do it |
-|---|---|---|---|
-| POST | /api/auth/register | No | anyone |
-| POST | /api/auth/login | No | anyone |
-| GET | /api/posts | JWT | any logged-in user |
-| GET | /api/posts/:id | JWT | any logged-in user |
-| POST | /api/posts | JWT | any logged-in user |
-| PATCH | /api/posts/:id | JWT | **post owner only** |
-| DELETE | /api/posts/:id | JWT | **post owner only** |
-| POST | /api/posts/:id/like | JWT | toggles like/unlike |
-| GET | /api/posts/:id/comments | JWT | any logged-in user |
-| POST | /api/posts/:id/comments | JWT | any logged-in user |
-| PATCH | /api/comments/:id | JWT | **comment owner only** |
-| DELETE | /api/comments/:id | JWT | **comment owner only** |
-
-Token is sent as header: `Authorization: Bearer <token>`
-
-## Requirement checklist
-| Requirement | Where |
-|---|---|
-| User, Post, Comment schemas | `backend/models/` |
-| JWT authentication for all interactions | `middleware/auth.js`, `router.use(protect)` |
-| Ownership-based authorization | `middleware/ownership.js` |
-| Like/unlike toggle | `postController.toggleLike` |
-| Validate content before saving | `middleware/validate.js` + schema validators |
-| Unauthenticated requests rejected | `protect` returns 401 |
-| Like counts accurate | count = `likes.length` (array of unique user ids) |
-| Referenced collections | `ref: 'User'`, `ref: 'Post'` + `populate()` |
-| .env config | `.env.example` |
-| Postman collection | `backend/postman/` |
-
-## Deployment
-**Backend (Render):** New Web Service -> connect GitHub repo -> Root Directory `backend` ->
-Build `npm install`, Start `npm start` -> add env vars `MONGO_URI`, `JWT_SECRET`, `CLIENT_URL` (your frontend URL). Render sets `PORT` itself.
-
-**Frontend (Vercel/Netlify):** Root Directory `frontend`, build `npm run build`, output `dist` ->
-env var `VITE_API_URL=https://<your-render-app>.onrender.com/api`.
+</div>
 
 ---
 
-# Viva preparation
+## Table of Contents
 
-## How one request flows (say this first)
-`Client -> route -> auth middleware (JWT) -> ownership middleware -> validation -> controller -> Mongoose model -> MongoDB -> JSON response`
+1. [Overview](#overview)
+2. [Features](#features)
+3. [Tech Stack](#tech-stack)
+4. [System Architecture](#system-architecture)
+5. [Project Structure](#project-structure)
+6. [Database Design](#database-design)
+7. [API Reference](#api-reference)
+8. [Security](#security)
+9. [Getting Started](#getting-started)
+10. [Testing the API](#testing-the-api)
+11. [Deployment](#deployment)
+12. [Troubleshooting](#troubleshooting)
+13. [Future Improvements](#future-improvements)
+14. [Author](#author)
 
-## Likely questions and short answers
+---
 
-**Q1. What is JWT and how did you use it?**
-JSON Web Token. After login the server signs a token containing the user id using `JWT_SECRET`. The client sends it in the `Authorization` header on every request. The `protect` middleware verifies the signature and expiry, loads the user and puts it in `req.user`. If invalid -> 401.
+## Overview
 
-**Q2. Authentication vs Authorization?**
-Authentication = who are you (JWT check, 401). Authorization = are you allowed to do this (ownership check, 403). 
+PostBoard is a REST API with a lightweight React client. Only signed-in users can see or interact with the feed.
+Users can write short text posts, like or unlike them, and discuss them in comments. Every user can edit or delete
+**only their own** posts and comments; the server enforces this rule, not the interface.
 
-**Q3. How did you implement ownership?**
-`checkOwnership(Model)` finds the post/comment, compares `doc.author` with `req.user._id`. If different -> 403 Forbidden. Same middleware is reused for posts and comments.
+This project was built for the **Backend Development (Node.js, Express.js and MongoDB)** course, B.Tech Computer Science
+Engineering, ITM Skills University (Project 119: *Social Media Post Sharing Platform*). All validation and business
+logic lives in the backend. The frontend only calls the REST API.
 
-**Q4. How does like/unlike work?**
-Post has a `likes` array of user ids. If my id is already inside, I remove it (unlike), otherwise I add it (like). The like count is `likes.length`, so a user can never like twice and the count is always correct.
+## Features
 
-**Q5. Why store passwords with bcrypt?**
-Plain passwords are dangerous if the DB leaks. bcrypt hashes with a salt (one-way), and `bcrypt.compare` checks login. 
+| Area | What it does |
+|---|---|
+| **Authentication** | Register and log in. Passwords are hashed with bcrypt and sessions use signed JWTs. |
+| **Posts** | Create, read, edit and delete text posts (max 500 characters). |
+| **Comments** | Add, list, edit and delete comments on a post (max 200 characters). |
+| **Likes** | One-click like/unlike toggle. A user can like a post only once, so counts stay accurate. |
+| **Authorization** | Ownership middleware blocks editing or deleting other people's posts and comments (HTTP 403). |
+| **Protected feed** | Requests without a valid token are rejected (HTTP 401). |
+| **Validation** | Input is checked in middleware and again by Mongoose schema rules. |
+| **Data integrity** | Deleting a post also deletes its comments, so no orphan documents remain. |
+| **Frontend** | Login/Register, feed with inline composer, Add/Edit form, and a post details page with comments. |
 
-**Q6. What is referencing vs embedding? Which did you use?**
-Referencing stores only the `ObjectId` of another document (`author: ref 'User'`); embedding puts the whole sub-document inside. I used referencing, and `populate()` to fetch the username. Comments are a separate collection because a post can have many comments and they are edited/deleted independently.
+## Tech Stack
 
-**Q7. What is middleware?**
-A function with `(req, res, next)` that runs between request and response. I made auth, ownership and validation middleware. `next()` passes control forward.
+| Layer | Technology |
+|---|---|
+| Runtime | Node.js |
+| Web framework | Express.js |
+| Database | MongoDB Atlas with Mongoose ODM |
+| Authentication | JSON Web Tokens (`jsonwebtoken`), `bcryptjs` |
+| Other backend packages | `cors`, `dotenv`, `nodemon` (dev) |
+| Frontend | React 18, Vite, React Router, Axios |
+| Deployment | Render (API), Vercel or Netlify (client), MongoDB Atlas (database) |
 
-**Q8. How do you validate data?**
-Two layers: `validate.js` middleware rejects empty/too long text with 400 before hitting the DB, and Mongoose schema rules (`required`, `maxlength`) are a second safety net.
+## System Architecture
 
-**Q9. Why PATCH and not PUT?**
-PATCH updates only the given field (content); PUT replaces the whole resource.
+```
+┌──────────────────┐      HTTPS / JSON       ┌───────────────────────────┐        ┌──────────────┐
+│  React (Vite)    │ ──────────────────────▶ │  Express.js REST API      │ ─────▶ │ MongoDB Atlas│
+│  localhost:5173  │ ◀────────────────────── │  localhost:5001           │ ◀───── │  (Mongoose)  │
+└──────────────────┘   Authorization: Bearer └───────────────────────────┘        └──────────────┘
+                              <JWT>
+```
 
-**Q10. What status codes did you use?**
-200 OK, 201 Created, 400 Bad Request (validation), 401 Unauthorized (no/invalid token), 403 Forbidden (not the owner), 404 Not Found, 500 Server error.
+**Request lifecycle for a protected route** (for example `PATCH /api/posts/:id`):
 
-**Q11. Why is `author` taken from the token and not from the request body?**
-If it came from the body, a user could pretend to be someone else. Using `req.user._id` from the verified token is safe.
+```
+Request → CORS → JSON parser → auth (verify JWT) → ownership (is author?) → validation → controller → Mongoose → Response
+              └─ 401 if token is missing/invalid  └─ 403 if not owner       └─ 400 if bad input
+```
 
-**Q12. What does `.env` do? Why not commit it?**
-Stores secrets (DB password, JWT secret) outside code. It is in `.gitignore`; `.env.example` shows the needed keys.
+## Project Structure
 
-**Q13. What happens when a post is deleted?**
-Its comments are deleted too (`Comment.deleteMany`) so no orphan comments remain.
+```
+social-media-platform/
+├── backend/
+│   ├── server.js                   # App entry point: middleware, routes, error handling
+│   ├── config/
+│   │   └── db.js                   # MongoDB Atlas connection
+│   ├── models/
+│   │   ├── User.js                 # username, email, hashed password
+│   │   ├── Post.js                 # content, author (ref), likes[] (refs)
+│   │   └── Comment.js              # text, post (ref), author (ref)
+│   ├── middleware/
+│   │   ├── auth.js                 # JWT authentication
+│   │   ├── ownership.js            # ownership-based authorization
+│   │   └── validate.js             # request validation
+│   ├── controllers/
+│   │   ├── authController.js       # register, login
+│   │   ├── postController.js       # posts CRUD, like toggle
+│   │   └── commentController.js    # comments CRUD
+│   ├── routes/
+│   │   ├── authRoutes.js
+│   │   ├── postRoutes.js
+│   │   └── commentRoutes.js
+│   ├── postman/                    # Postman / Thunder Client collection
+│   └── .env.example                # Environment variable template
+│
+├── frontend/
+│   ├── index.html
+│   ├── vite.config.js
+│   ├── .env.example
+│   └── src/
+│       ├── main.jsx, App.jsx       # Bootstrap and routing
+│       ├── api.js                  # Axios instance with JWT interceptor
+│       ├── AuthContext.jsx         # Login state shared across the app
+│       ├── utils.js
+│       ├── components/             # Navbar, PostCard, CommentSection, Avatar, ...
+│       └── pages/                  # Login, Register, Feed, PostForm, PostDetails
+│
+└── README.md
+```
 
-**Q14. What is CORS?**
-Browser rule that blocks a frontend on one origin from calling an API on another. The `cors` package tells the browser our frontend is allowed.
+## Database Design
 
-**Q15. What is `timestamps: true`?**
-Mongoose automatically adds `createdAt` and `updatedAt`.
+The three collections are **referenced** (linked by ObjectId) rather than embedded, and `populate()` joins them when reading.
 
-**Q16. How would you improve it?**
-Pagination, image upload, refresh tokens, rate limiting, `express-validator`, notifications.
+```
+┌────────────┐ 1        * ┌────────────┐ 1        * ┌────────────┐
+│    User    │────────────│    Post    │────────────│  Comment   │
+└────────────┘   author   └────────────┘    post    └────────────┘
+       │                        │ likes[] (User ids)        │
+       └────────────────────────┘                           │
+       └────────────────────── author ──────────────────────┘
+```
 
-## Demo script for the exam (2 minutes)
-1. Register user A, create a post. 2. Register user B, like and comment on A's post; like again to show unlike.
-3. As B try to edit A's post (Postman) -> 403. 4. Call `/api/posts` without token -> 401.
-5. Send an empty post -> 400.
+| Collection | Field | Type | Rules |
+|---|---|---|---|
+| **User** | `username` | String | required, unique, 3-30 characters |
+| | `email` | String | required, unique, valid format, lowercase |
+| | `password` | String | required, min 6 characters, stored as bcrypt hash |
+| **Post** | `content` | String | required, trimmed, 1-500 characters |
+| | `author` | ObjectId → User | required |
+| | `likes` | [ObjectId → User] | one entry per user; count = `likes.length` |
+| **Comment** | `text` | String | required, trimmed, 1-200 characters |
+| | `post` | ObjectId → Post | required |
+| | `author` | ObjectId → User | required |
+
+All collections use `timestamps: true` (`createdAt`, `updatedAt`).
+
+## API Reference
+
+Base URL: `http://localhost:5001/api`
+
+Protected routes need the header `Authorization: Bearer <token>`.
+
+### Authentication
+
+| Method | Endpoint | Access | Body |
+|---|---|---|---|
+| POST | `/auth/register` | Public | `{ "username", "email", "password" }` |
+| POST | `/auth/login` | Public | `{ "email", "password" }` |
+
+Both return the user's `_id`, `username`, `email` and a `token`.
+
+### Posts
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| GET | `/posts` | Logged in | Feed, newest first, with comment counts |
+| GET | `/posts/:id` | Logged in | Single post |
+| POST | `/posts` | Logged in | Create a post: `{ "content" }` |
+| PATCH | `/posts/:id` | **Owner only** | Edit a post: `{ "content" }` |
+| DELETE | `/posts/:id` | **Owner only** | Delete a post and its comments |
+| POST | `/posts/:id/like` | Logged in | Toggle like/unlike; returns `liked` and `likesCount` |
+
+### Comments
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| GET | `/posts/:id/comments` | Logged in | List comments of a post |
+| POST | `/posts/:id/comments` | Logged in | Add a comment: `{ "text" }` |
+| PATCH | `/comments/:id` | **Owner only** | Edit a comment: `{ "text" }` |
+| DELETE | `/comments/:id` | **Owner only** | Delete a comment |
+
+### Status codes
+
+| Code | Meaning | Example |
+|---|---|---|
+| 200 / 201 | Success / created | Post created |
+| 400 | Validation error | Empty post, text too long, duplicate email |
+| 401 | Not authenticated | Missing, invalid or expired token |
+| 403 | Not authorized | Editing someone else's post |
+| 404 | Not found | Post or comment does not exist |
+| 500 | Server error | Unexpected failure |
+
+## Security
+
+- **Password hashing:** bcrypt with 10 salt rounds; plain-text passwords are never stored.
+- **JWT authentication:** tokens are signed with `JWT_SECRET` and expire (default 7 days). Every post and comment route requires one.
+- **Ownership authorization:** a reusable middleware compares the document's `author` with the logged-in user before any edit or delete.
+- **Trusted identity:** the author of a new post or comment is taken from the verified token, never from the request body.
+- **Input validation:** length and required-field checks run before the controller, with Mongoose schema validation as a second layer.
+- **Generic login errors:** wrong email and wrong password return the same message.
+- **Secrets in environment variables:** `.env` is git-ignored; only `.env.example` is committed.
+- **CORS:** restricted to the configured `CLIENT_URL`.
+
+## Getting Started
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org) 18 or later
+- A free [MongoDB Atlas](https://www.mongodb.com/atlas) account
+- Git
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/nimishbordiyajain-cpu/social-media-platform.git
+cd social-media-platform
+```
+
+### 2. Set up MongoDB Atlas
+
+1. Create a free **M0** cluster.
+2. **Database Access → Add New Database User.** Choose a username and a password with letters and numbers only.
+3. **Network Access → Add IP Address → Allow Access From Anywhere** (`0.0.0.0/0`).
+4. **Database → Connect → Drivers**, then copy the connection string.
+
+### 3. Configure and start the backend
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+```
+
+Edit `backend/.env`:
+
+```env
+PORT=5001
+MONGO_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/socialdb?retryWrites=true&w=majority
+JWT_SECRET=use_a_long_random_string_here
+JWT_EXPIRES_IN=7d
+CLIENT_URL=http://localhost:5173
+```
+
+> Put the database name (`socialdb`) after `.mongodb.net/`. Without it, MongoDB saves your data in a database called `test`.
+
+```bash
+npm run dev
+```
+
+Expected output:
+
+```
+Server running on port 5001
+MongoDB connected -> host: ... | database: socialdb
+```
+
+### 4. Configure and start the frontend
+
+Open a second terminal:
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+```
+
+`frontend/.env`:
+
+```env
+VITE_API_URL=http://localhost:5001/api
+```
+
+```bash
+npm run dev
+```
+
+Open **http://localhost:5173**.
+
+### Environment variables
+
+| File | Variable | Description |
+|---|---|---|
+| `backend/.env` | `PORT` | Port for the API (5001 avoids the macOS AirPlay conflict on 5000) |
+| | `MONGO_URI` | MongoDB Atlas connection string, including the database name |
+| | `JWT_SECRET` | Secret used to sign tokens |
+| | `JWT_EXPIRES_IN` | Token lifetime, for example `7d` |
+| | `CLIENT_URL` | Allowed frontend origin for CORS |
+| `frontend/.env` | `VITE_API_URL` | Backend API base URL, ending with `/api` |
+
+## Testing the API
+
+1. Import `backend/postman/Social-Media-API.postman_collection.json` into **Postman** or **Thunder Client**.
+2. Run **Register** first. The token is saved automatically and reused by the other requests.
+3. Run the requests in order: create post, like, comment, edit, delete.
+4. Open the **Negative tests** folder to see the protection working:
+
+| Test | Expected result |
+|---|---|
+| Get feed without a token | `401 Unauthorized` |
+| Create an empty post | `400 Bad Request` |
+| Create a post over 500 characters | `400 Bad Request` |
+| Edit another user's post | `403 Forbidden` |
+
+## Deployment
+
+| Part | Platform | Settings |
+|---|---|---|
+| Database | MongoDB Atlas | Allow `0.0.0.0/0` in Network Access |
+| Backend | Render (Web Service) | Root directory `backend`, build `npm install`, start `npm start`. Add `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `CLIENT_URL` (your frontend URL). Render provides `PORT` automatically. |
+| Frontend | Vercel or Netlify | Root directory `frontend`, build `npm run build`, output `dist`. Add `VITE_API_URL=https://<your-backend>.onrender.com/api`. |
+
+Deploy the backend first, then put its URL into the frontend's `VITE_API_URL`, then set the frontend's URL as `CLIENT_URL` on the backend. On Render's free tier the API sleeps when idle, so the first request after a pause can take about 30 seconds.
+
+## Troubleshooting
+
+| Problem | Likely cause and fix |
+|---|---|
+| `EADDRINUSE: address already in use :::5000` | On macOS, AirPlay Receiver uses port 5000. Use `PORT=5001` (the default here). |
+| `The uri parameter ... got "undefined"` | `backend/.env` does not exist. Run `cp .env.example .env` and fill it in. |
+| `bad auth` / `Authentication failed` | Wrong Atlas username or password in `MONGO_URI`, or special characters in the password. |
+| Timeout or `ENOTFOUND` connecting to Atlas | Add `0.0.0.0/0` under Network Access and wait a minute. |
+| Frontend shows `Route not found` | `VITE_API_URL` is missing `/api` at the end. |
+| Frontend shows `Network Error` | Backend is not running, or the ports in the two `.env` files differ. |
+| `.env` change has no effect | `.env` is read only at startup. Restart both servers. |
+| Data missing in the `socialdb` database | `MONGO_URI` has no database name, so data went to `test`. |
+
+## Future Improvements
+
+- Pagination or infinite scroll for the feed
+- Image uploads for posts
+- Refresh tokens and logout on all devices
+- Rate limiting and `helmet` security headers
+- Automated tests with Jest and Supertest
+- Notifications for likes and comments
+
+## Author
+
+**Nimish Bordiya**
+B.Tech Computer Science Engineering, ITM Skills University
+GitHub: [@nimishbordiyajain-cpu](https://github.com/nimishbordiyajain-cpu)
