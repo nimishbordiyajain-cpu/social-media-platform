@@ -18,7 +18,7 @@ app.use(
   })
 );
 
-// JSON parser
+// JSON body parser
 app.use(express.json());
 
 // Health check
@@ -26,7 +26,7 @@ app.get('/', (req, res) => {
   res.send('Social Media API is running');
 });
 
-// Connect to MongoDB before API requests
+// Make sure MongoDB is connected before API requests
 app.use('/api', async (req, res, next) => {
   try {
     await connectDB();
@@ -40,7 +40,7 @@ app.use('/api', async (req, res, next) => {
   }
 });
 
-// API routes
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/comments', commentRoutes);
@@ -52,9 +52,9 @@ app.use((req, res) => {
   });
 });
 
-// Central error handler
+// Error handler
 app.use((err, req, res, next) => {
-  console.error(err);
+  console.error('Server error:', err);
 
   if (err.name === 'ValidationError') {
     const message = Object.values(err.errors)
