@@ -1,7 +1,10 @@
 // Axios instance: every request goes to the backend API base URL from .env
 import axios from 'axios';
 
-const api = axios.create({ baseURL: import.meta.env.VITE_API_URL });
+const rawBaseURL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const baseURL = rawBaseURL.replace(/\/+$/, '');
+
+const api = axios.create({ baseURL });
 
 // Request interceptor: automatically attach the JWT token to every request
 api.interceptors.request.use((config) => {
@@ -24,6 +27,10 @@ api.interceptors.response.use(
 );
 
 // Helper to read the error message sent by the backend
-export const errorMessage = (err) => err.response?.data?.message || 'Something went wrong';
+export const errorMessage = (err) =>
+  err.response?.data?.message ||
+  err.response?.data?.error ||
+  err.message ||
+  'Something went wrong';
 
 export default api;

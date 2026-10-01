@@ -7,6 +7,7 @@ import AuthLayout from '../components/AuthLayout.jsx';
 export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -15,12 +16,15 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
     try {
       const { data } = await api.post('/auth/login', form);
       login(data);          // save token + user
       navigate('/');
     } catch (err) {
       setError(errorMessage(err));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -33,7 +37,9 @@ export default function Login() {
         <form onSubmit={handleSubmit} className="stack">
           <label>Email<input type="email" name="email" value={form.email} onChange={handleChange} required /></label>
           <label>Password<input type="password" name="password" value={form.password} onChange={handleChange} required /></label>
-          <button className="btn btn-primary btn-block" type="submit">Log in</button>
+          <button className="btn btn-primary btn-block" type="submit" disabled={loading}>
+            {loading ? 'Logging in...' : 'Log in'}
+          </button>
         </form>
         <p className="muted switch">New here? <Link to="/register">Create an account</Link></p>
       </div>

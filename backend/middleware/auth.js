@@ -4,6 +4,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'postboard_default_secret_key_replace_in_production';
+
 const protect = async (req, res, next) => {
   try {
     const header = req.headers.authorization;
@@ -15,7 +17,7 @@ const protect = async (req, res, next) => {
     const token = header.split(' ')[1];
 
     // 2. Is the token valid and not expired? (throws error if not)
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
 
     // 3. Does the user still exist?
     const user = await User.findById(decoded.id).select('-password');

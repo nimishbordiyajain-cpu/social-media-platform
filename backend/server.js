@@ -54,8 +54,8 @@ app.get('/', (req, res) => {
 // Diagnostic endpoint
 app.get('/api/health', async (req, res) => {
   const hasMongoUri = Boolean(process.env.MONGO_URI);
+  const hasJwtSecret = Boolean(process.env.JWT_SECRET);
   let dbStatus = 'disconnected';
-  let dbError = null;
 
   try {
     await connectDB();
@@ -64,6 +64,10 @@ app.get('/api/health', async (req, res) => {
       status: 'ok',
       database: {
         status: dbStatus,
+      },
+      env: {
+        hasMongoUri,
+        hasJwtSecret,
       },
       clientUrl: process.env.CLIENT_URL || null,
     });
@@ -75,6 +79,10 @@ app.get('/api/health', async (req, res) => {
         hasUri: hasMongoUri,
         error: err.message,
         name: err.name,
+      },
+      env: {
+        hasMongoUri,
+        hasJwtSecret,
       },
       clientUrl: process.env.CLIENT_URL || null,
     });
