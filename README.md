@@ -290,6 +290,8 @@ Open **http://localhost:5173**.
 
 ### Environment variables
 
+Real values are never committed to the repository; `.env.example` holds placeholders only.
+
 | File | Variable | Description |
 |---|---|---|
 | `backend/.env` | `PORT` | Port for the API (5001 avoids the macOS AirPlay conflict on 5000) |
@@ -314,6 +316,8 @@ Open **http://localhost:5173**.
 | Edit another user's post | `403 Forbidden` |
 
 ## Deployment
+
+> **Note:** The backend is deployed on Vercel (serverless) and the frontend on Vercel, and `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN` and `CLIENT_URL` are set in the Vercel project's Environment Variables.
 
 | Part | Platform | Settings |
 |---|---|---|

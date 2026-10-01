@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const { getJwtSecret } = require('./config/jwt');
 
 const authRoutes = require('./routes/authRoutes');
 const postRoutes = require('./routes/postRoutes');
@@ -144,6 +145,18 @@ app.use((err, req, res, next) => {
 
 // Local development only
 if (require.main === module) {
+  if (!process.env.MONGO_URI) {
+    console.error('Failed to start server: MONGO_URI environment variable is missing');
+    process.exit(1);
+  }
+
+  try {
+    getJwtSecret();
+  } catch (error) {
+    console.error(`Failed to start server: ${error.message}`);
+    process.exit(1);
+  }
+
   const PORT = process.env.PORT || 5000;
 
   connectDB()
