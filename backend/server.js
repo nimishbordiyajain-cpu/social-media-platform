@@ -10,11 +10,36 @@ const commentRoutes = require('./routes/commentRoutes');
 
 const app = express();
 
-// CORS
+// Allowed origins for CORS (supports comma-separated list and strips trailing slashes)
+const allowedOrigins = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map((url) => url.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || '*',
-    credentials: true
+    origin: (origin, callback) => {
+      // allow requests with no origin (e.g. mobile apps, curl, Postman)
+      if (!origin) return callback(null, true);
+
+      // if CLIENT_URL is not configured or set to wildcard '*', allow all
+      if (allowedOrigins.length === 0 || allowedOrigins.includes('*')) {
+        return callback(null, true);
+      }
+
+      const normalizedOrigin = origin.replace(/\/+$/, '');
+      if (allowedOrigins.includes(normalizedOrigin)) {
+        return callback(null, true);
+      }
+
+      // Automatically allow Vercel deployments of the social-media-platform project
+      if (/^https:\/\/social-media-platform(-[a-z0-9-]+)?\.vercel\.app$/.test(normalizedOrigin)) {
+        return callback(null, true);
+      }
+
+      return callback(null, false);
+    },
+    credentials: true,
   })
 );
 
@@ -26,6 +51,36 @@ app.get('/', (req, res) => {
   res.send('Social Media API is running');
 });
 
+// Diagnostic endpoint
+app.get('/api/health', async (req, res) => {
+  const hasMongoUri = Boolean(process.env.MONGO_URI);
+  let dbStatus = 'disconnected';
+  let dbError = null;
+
+  try {
+    await connectDB();
+    dbStatus = 'connected';
+    return res.json({
+      status: 'ok',
+      database: {
+        status: dbStatus,
+      },
+      clientUrl: process.env.CLIENT_URL || null,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      status: 'error',
+      database: {
+        status: dbStatus,
+        hasUri: hasMongoUri,
+        error: err.message,
+        name: err.name,
+      },
+      clientUrl: process.env.CLIENT_URL || null,
+    });
+  }
+});
+
 // Make sure MongoDB is connected before API requests
 app.use('/api', async (req, res, next) => {
   try {
@@ -35,7 +90,9 @@ app.use('/api', async (req, res, next) => {
     console.error('Database connection error:', error);
 
     res.status(500).json({
-      message: 'Database connection failed'
+      message: 'Database connection failed',
+      error: error.message,
+      name: error.name,
     });
   }
 });
