@@ -15,22 +15,35 @@ Built with **Node.js, Express.js, MongoDB (Mongoose) and React**, secured with *
 
 ---
 
+## Live Demo
+
+| Part | URL |
+|---|---|
+| Frontend (Vercel) | https://social-media-platform-36gt.vercel.app |
+| Backend API (Vercel serverless) | https://social-media-platform-one-drab.vercel.app |
+| Database | MongoDB Atlas |
+
+The frontend is connected to the live backend through the `VITE_API_URL` environment variable.
+
+---
+
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Features](#features)
-3. [Tech Stack](#tech-stack)
-4. [System Architecture](#system-architecture)
-5. [Project Structure](#project-structure)
-6. [Database Design](#database-design)
-7. [API Reference](#api-reference)
-8. [Security](#security)
-9. [Getting Started](#getting-started)
-10. [Testing the API](#testing-the-api)
-11. [Deployment](#deployment)
-12. [Troubleshooting](#troubleshooting)
-13. [Future Improvements](#future-improvements)
-14. [Author](#author)
+1. [Live Demo](#live-demo)
+2. [Overview](#overview)
+3. [Features](#features)
+4. [Tech Stack](#tech-stack)
+5. [System Architecture](#system-architecture)
+6. [Project Structure](#project-structure)
+7. [Database Design](#database-design)
+8. [API Reference](#api-reference)
+9. [Security](#security)
+10. [Getting Started](#getting-started)
+11. [Testing the API](#testing-the-api)
+12. [Deployment](#deployment)
+13. [Troubleshooting](#troubleshooting)
+14. [Future Improvements](#future-improvements)
+15. [Author](#author)
 
 ---
 
@@ -68,7 +81,7 @@ logic lives in the backend. The frontend only calls the REST API.
 | Authentication | JSON Web Tokens (`jsonwebtoken`), `bcryptjs` |
 | Other backend packages | `cors`, `dotenv`, `nodemon` (dev) |
 | Frontend | React 18, Vite, React Router, Axios |
-| Deployment | Render (API), Vercel or Netlify (client), MongoDB Atlas (database) |
+| Deployment | Vercel (API as serverless functions), Vercel (client), MongoDB Atlas (database) |
 
 ## System Architecture
 
@@ -93,8 +106,12 @@ Request → CORS → JSON parser → auth (verify JWT) → ownership (is author?
 social-media-platform/
 ├── backend/
 │   ├── server.js                   # App entry point: middleware, routes, error handling
+│   ├── api/
+│   │   └── index.js                # Vercel serverless entry point
+│   ├── vercel.json                 # Vercel routing for the API
 │   ├── config/
-│   │   └── db.js                   # MongoDB Atlas connection
+│   │   ├── db.js                   # MongoDB Atlas connection (cached for serverless)
+│   │   └── jwt.js                  # Reads JWT_SECRET from the environment (required)
 │   ├── models/
 │   │   ├── User.js                 # username, email, hashed password
 │   │   ├── Post.js                 # content, author (ref), likes[] (refs)
@@ -112,7 +129,7 @@ social-media-platform/
 │   │   ├── postRoutes.js
 │   │   └── commentRoutes.js
 │   ├── postman/                    # Postman / Thunder Client collection
-│   └── .env.example                # Environment variable template
+│   └── .env.example                # Environment variable template (placeholders only)
 │
 ├── frontend/
 │   ├── index.html
@@ -205,12 +222,12 @@ Both return the user's `_id`, `username`, `email` and a `token`.
 ## Security
 
 - **Password hashing:** bcrypt with 10 salt rounds; plain-text passwords are never stored.
-- **JWT authentication:** tokens are signed with `JWT_SECRET` and expire (default 7 days). Every post and comment route requires one.
+- **JWT authentication:** tokens are signed with `JWT_SECRET` and expire (default 7 days). Every post and comment route requires one. `JWT_SECRET` is mandatory: there is no built-in fallback, and the server refuses to start without it.
 - **Ownership authorization:** a reusable middleware compares the document's `author` with the logged-in user before any edit or delete.
 - **Trusted identity:** the author of a new post or comment is taken from the verified token, never from the request body.
 - **Input validation:** length and required-field checks run before the controller, with Mongoose schema validation as a second layer.
 - **Generic login errors:** wrong email and wrong password return the same message.
-- **Secrets in environment variables:** `.env` is git-ignored; only `.env.example` is committed.
+- **Secrets in environment variables:** `.env` is git-ignored; only `.env.example` (placeholders, no real credentials) is committed. On Vercel, secrets are set in the project's Environment Variables.
 - **CORS:** restricted to the configured `CLIENT_URL`.
 
 ## Getting Started
@@ -248,7 +265,7 @@ Edit `backend/.env`:
 ```env
 PORT=5001
 MONGO_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/socialdb?retryWrites=true&w=majority
-JWT_SECRET=use_a_long_random_string_here
+JWT_SECRET=replace_with_a_long_random_string
 JWT_EXPIRES_IN=7d
 CLIENT_URL=http://localhost:5173
 ```
@@ -262,8 +279,8 @@ npm run dev
 Expected output:
 
 ```
+MongoDB connected: <cluster-host>/socialdb
 Server running on port 5001
-MongoDB connected -> host: ... | database: socialdb
 ```
 
 ### 4. Configure and start the frontend
@@ -296,7 +313,7 @@ Real values are never committed to the repository; `.env.example` holds placehol
 |---|---|---|
 | `backend/.env` | `PORT` | Port for the API (5001 avoids the macOS AirPlay conflict on 5000) |
 | | `MONGO_URI` | MongoDB Atlas connection string, including the database name |
-| | `JWT_SECRET` | Secret used to sign tokens |
+| | `JWT_SECRET` | **Required.** Secret used to sign tokens. Use a long random string |
 | | `JWT_EXPIRES_IN` | Token lifetime, for example `7d` |
 | | `CLIENT_URL` | Allowed frontend origin for CORS |
 | `frontend/.env` | `VITE_API_URL` | Backend API base URL, ending with `/api` |
@@ -304,9 +321,10 @@ Real values are never committed to the repository; `.env.example` holds placehol
 ## Testing the API
 
 1. Import `backend/postman/Social-Media-API.postman_collection.json` into **Postman** or **Thunder Client**.
-2. Run **Register** first. The token is saved automatically and reused by the other requests.
-3. Run the requests in order: create post, like, comment, edit, delete.
-4. Open the **Negative tests** folder to see the protection working:
+2. Set the collection variable `baseUrl` to `http://localhost:5001` for local testing, or `https://social-media-platform-one-drab.vercel.app` for the live API.
+3. Run **Register** first. The token is saved automatically and reused by the other requests.
+4. Run the requests in order: create post, like, comment, edit, delete.
+5. Open the **Negative tests** folder to see the protection working:
 
 | Test | Expected result |
 |---|---|
@@ -317,15 +335,22 @@ Real values are never committed to the repository; `.env.example` holds placehol
 
 ## Deployment
 
-> **Note:** The backend is deployed on Vercel (serverless) and the frontend on Vercel, and `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN` and `CLIENT_URL` are set in the Vercel project's Environment Variables.
+Both apps are deployed on **Vercel** as two separate projects, with **MongoDB Atlas** as the database.
 
 | Part | Platform | Settings |
 |---|---|---|
-| Database | MongoDB Atlas | Allow `0.0.0.0/0` in Network Access |
-| Backend | Render (Web Service) | Root directory `backend`, build `npm install`, start `npm start`. Add `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `CLIENT_URL` (your frontend URL). Render provides `PORT` automatically. |
-| Frontend | Vercel or Netlify | Root directory `frontend`, build `npm run build`, output `dist`. Add `VITE_API_URL=https://<your-backend>.onrender.com/api`. |
+| Database | MongoDB Atlas | Network Access: allow `0.0.0.0/0` (Vercel uses changing IP addresses). |
+| Backend | Vercel (serverless) | Root directory `backend`. `vercel.json` routes every request to `api/index.js`, which exports the Express app. Add `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN` and `CLIENT_URL` under **Settings → Environment Variables**. |
+| Frontend | Vercel | Root directory `frontend`, build `npm run build`, output `dist`. Add `VITE_API_URL=https://<your-backend>.vercel.app/api`. `vercel.json` rewrites all routes to `index.html` for React Router. |
 
-Deploy the backend first, then put its URL into the frontend's `VITE_API_URL`, then set the frontend's URL as `CLIENT_URL` on the backend. On Render's free tier the API sleeps when idle, so the first request after a pause can take about 30 seconds.
+**Order of deployment:** deploy the backend first, put its URL into the frontend's `VITE_API_URL`, deploy the frontend, then set the frontend's URL as `CLIENT_URL` on the backend and redeploy it.
+
+**Notes**
+
+- Real credentials live only in Vercel's Environment Variables and in your local `.env`. They are never committed.
+- The backend can also run as a normal long-lived server on Render or Railway: root directory `backend`, build `npm install`, start `npm start`, same environment variables.
+- Changing an environment variable on Vercel needs a redeploy before it takes effect.
+- Serverless functions can take a second or two on the first request after being idle (cold start).
 
 ## Troubleshooting
 
@@ -338,6 +363,9 @@ Deploy the backend first, then put its URL into the frontend's `VITE_API_URL`, t
 | Frontend shows `Route not found` | `VITE_API_URL` is missing `/api` at the end. |
 | Frontend shows `Network Error` | Backend is not running, or the ports in the two `.env` files differ. |
 | `.env` change has no effect | `.env` is read only at startup. Restart both servers. |
+| CORS error in the browser on the live site | `CLIENT_URL` on the backend does not match the frontend URL exactly (no trailing slash needed). Update it and redeploy the backend. |
+| Server exits with a `JWT_SECRET` or `MONGO_URI` error | The variable is missing. Add it to `backend/.env` locally, or to Vercel's Environment Variables, then redeploy. |
+| Live API returns `Database connection failed` | Wrong password in `MONGO_URI`, or Atlas Network Access does not allow `0.0.0.0/0`. |
 | Data missing in the `socialdb` database | `MONGO_URI` has no database name, so data went to `test`. |
 
 ## Future Improvements
